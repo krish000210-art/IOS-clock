@@ -8,6 +8,34 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@900&display=swap" rel="stylesheet">
+
+  <!-- Preload assets used across all slides so swipes are instant -->
+  <link rel="preload" as="image"
+        href="https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1600&q=80"
+        fetchpriority="high" crossorigin>
+  <link rel="preload" as="image" href="/open-external.png">
+
+  <!-- Warm up external API origins used by weather / stocks / news -->
+  <link rel="preconnect" href="https://api.open-meteo.com" crossorigin>
+  <link rel="preconnect" href="https://geocoding-api.open-meteo.com" crossorigin>
+  <link rel="preconnect" href="https://ipapi.co" crossorigin>
+  <link rel="preconnect" href="https://stooq.com" crossorigin>
+  <link rel="preconnect" href="https://corsproxy.io" crossorigin>
+  <link rel="dns-prefetch" href="https://api.allorigins.win">
+  <link rel="dns-prefetch" href="https://api.codetabs.com">
+  <link rel="dns-prefetch" href="https://economictimes.indiatimes.com">
+
+  <script>
+    // Warm the browser cache for every slide's assets on first paint,
+    // so horizontal swipes never wait on a network round-trip.
+    (function preloadSlideAssets() {
+      var urls = [
+        'https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1600&q=80',
+        '/open-external.png'
+      ];
+      urls.forEach(function (u) { var i = new Image(); i.src = u; });
+    })();
+  </script>
   <style>
     :root {
       --apple-red: #ff3b30;
@@ -1051,18 +1079,72 @@
       justify-content: center;
       background: #000;
       overflow: hidden;
+      position: relative;
+      perspective: 1400px;
     }
-    .fs-canvas-wrap {
-      width: 100%;
-      height: 100%;
+    .fs-faces {
+      position: absolute;
+      inset: 0;
+      transform-style: preserve-3d;
+      transition: transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: transform;
+    }
+    .fs-face {
+      position: absolute;
+      inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
+      backface-visibility: hidden;
     }
-    .fs-canvas-wrap canvas {
+    .fs-face canvas {
       width: 100%;
       height: 100%;
+      position: relative;
+      z-index: 1;
     }
+    .fs-face[data-face="0"] { background: #000; }
+    .fs-face[data-face="1"] {
+      background: linear-gradient(115deg, #9ec5d8 0%, #b8c89a 55%, #b8a04a 100%);
+    }
+    .fs-face[data-face="2"] { background: #000; }
+    .fs-face[data-face="3"] {
+      background-image:
+        linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.15) 60%, rgba(0,0,0,0.35) 100%),
+        url('https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1600&q=80');
+      background-size: cover;
+      background-position: center;
+    }
+    body.aod-mode .fs-face[data-face="1"] { background: #0a0000; }
+    body.aod-mode .fs-face[data-face="3"] {
+      background-image: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)),
+        url('https://images.unsplash.com/photo-1454496522488-7a8e488e8606?auto=format&fit=crop&w=1600&q=80');
+    }
+    .fs-face-indicator {
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 30;
+      pointer-events: none;
+    }
+    .fs-face-indicator span {
+      width: 4px;
+      height: 18px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.22);
+      transition: background 250ms, height 250ms;
+    }
+    .fs-face-indicator span.active {
+      background: #fff;
+      height: 26px;
+    }
+    body.aod-mode .fs-face-indicator span { background: rgba(255,26,26,0.25); }
+    body.aod-mode .fs-face-indicator span.active { background: #ff1a1a; }
+
 
 
     /* Red Square Clock Widget (Slide 1, Left Col) */
@@ -1312,7 +1394,7 @@
           </svg>
           <div class="battery-percent-text" id="battery-percent-text" style="display: none;">92</div>
         </div>
-        <div class="battery-countdown" id="battery-countdown">30s</div>
+        
       </div>
 
 
@@ -2961,10 +3043,17 @@
 
         <!-- SLIDE 4: FULLSCREEN CANVAS ANALOG CLOCK -->
         <div class="slide fullscreen-clock-slide">
-          <div class="fs-canvas-wrap">
-            <canvas id="fs-canvas"></canvas>
+          <div class="fs-faces" id="fs-faces">
+            <div class="fs-face" data-face="0"><canvas class="fs-canvas" data-face-canvas="0"></canvas></div>
+            <div class="fs-face" data-face="1"><canvas class="fs-canvas" data-face-canvas="1"></canvas></div>
+            <div class="fs-face" data-face="2"><canvas class="fs-canvas" data-face-canvas="2"></canvas></div>
+            <div class="fs-face" data-face="3"><canvas class="fs-canvas" data-face-canvas="3"></canvas></div>
+          </div>
+          <div class="fs-face-indicator" id="fs-face-indicator">
+            <span class="active"></span><span></span><span></span><span></span>
           </div>
         </div>
+
 
       </div><!-- end carousel -->
 
@@ -3289,200 +3378,233 @@
       }
     })();
 
-    // --- Fullscreen Canvas Solar/Squircle Analog Clock (Slide 4) ---
+    // --- Fullscreen Canvas Clocks (Slide 4) — 4 faces with rolling vertical carousel ---
     (function() {
-      const canvas = document.getElementById('fs-canvas');
-      if (!canvas) return;
+      const facesWrap = document.getElementById('fs-faces');
+      if (!facesWrap) return;
+      const canvases = Array.from(document.querySelectorAll('.fs-canvas'));
+      const indicators = Array.from(document.querySelectorAll('#fs-face-indicator span'));
+      const FACE_COUNT = canvases.length;
+      let currentFace = 0;
+      let isAnimating = false;
 
-      function drawRectClock(now) {
-        const ctx = canvas.getContext('2d');
+      function isAOD() { return document.body.classList.contains('aod-mode'); }
+
+      function fitCanvas(canvas) {
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.parentElement.getBoundingClientRect();
-        if (rect.width === 0) return;
+        if (rect.width === 0) return null;
         if (canvas.width !== Math.floor(rect.width * dpr) || canvas.height !== Math.floor(rect.height * dpr)) {
           canvas.width = rect.width * dpr;
           canvas.height = rect.height * dpr;
         }
-        ctx.save();
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.scale(dpr, dpr);
         ctx.clearRect(0, 0, rect.width, rect.height);
+        return { ctx, w: rect.width, h: rect.height };
+      }
 
-        const centerX = rect.width / 2;
-        const centerY = rect.height / 2;
+      // Helper: iOS StandBy "Big" digital clock (color-themed)
+      function drawBigDigital(canvas, now, color) {
+        const f = fitCanvas(canvas); if (!f) return;
+        const { ctx, w, h } = f;
+        const aod = isAOD();
+        const main = aod ? '#ff1a1a' : color;
+        const white = aod ? '#ff1a1a' : '#ffffff';
 
-        // Squircle bounds
-        const padding = 28;
-        const a = (rect.width - padding * 2) / 2;
-        const b = (rect.height - padding * 2) / 2;
-        const n = 12;
+        let hh = now.getHours();
+        hh = hh % 12; if (hh === 0) hh = 12;
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const timeStr = `${hh}:${mm}`;
 
-        const isAOD = document.body.classList.contains('aod-mode');
-        const white = isAOD ? '#ff1a1a' : '#ffffff';
-        const majorGrey = isAOD ? '#660a0a' : '#a0a0a5';
-        const minorGrey = isAOD ? '#2a0000' : '#48484a';
-        const orange = isAOD ? '#ff1a1a' : '#ff9f0a';
-        const red = isAOD ? '#ff1a1a' : '#ff453a';
-
-        ctx.lineCap = 'round';
-
-        // --- Ticks & Numbers ---
-        for (let i = 0; i < 60; i++) {
-          const angle = (i * 6) * Math.PI / 180;
-          const sin = Math.sin(angle);
-          const cos = -Math.cos(angle);
-          const denom = Math.pow(Math.abs(sin / a), n) + Math.pow(Math.abs(cos / b), n);
-          const r_outer = 1 / Math.pow(denom, 1 / n);
-
-          const isCardinal = (i % 15 === 0);
-          const isMajor = (i % 5 === 0);
-
-          if (isCardinal) {
-            const numStr = i === 0 ? '12' : (i / 5).toString();
-            const r_text = r_outer - 35;
-            ctx.font = '500 84px "SF Pro Rounded", system-ui, "Arial Rounded MT Bold", sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = white;
-            ctx.fillText(numStr, centerX + r_text * sin, centerY + r_text * cos + 6);
-          } else {
-            let r_inner, lineWidth, strokeColor;
-            if (isMajor) {
-              r_inner = r_outer * 0.35;
-              lineWidth = 2.5;
-              strokeColor = majorGrey;
-            } else {
-              r_inner = r_outer - 16;
-              lineWidth = 2;
-              strokeColor = minorGrey;
-            }
-            ctx.beginPath();
-            ctx.moveTo(centerX + r_inner * sin, centerY + r_inner * cos);
-            ctx.lineTo(centerX + r_outer * sin, centerY + r_outer * cos);
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = lineWidth;
-            ctx.stroke();
-          }
+        // Layout: time fills left ~75%, sidebar right ~25%
+        const sidebarW = w * 0.24;
+        const timeAreaW = w - sidebarW;
+        // Auto-fit by measuring
+        let timeSize = Math.min(h * 1.05, timeAreaW * 0.62);
+        ctx.font = `900 ${timeSize}px "SF Pro Rounded", "SF Compact Rounded", "Arial Rounded MT Bold", system-ui, sans-serif`;
+        while (ctx.measureText(timeStr).width > timeAreaW * 0.94 && timeSize > 40) {
+          timeSize -= 6;
+          ctx.font = `900 ${timeSize}px "SF Pro Rounded", "SF Compact Rounded", "Arial Rounded MT Bold", system-ui, sans-serif`;
         }
-
-        // --- Alarm Widget (Left) ---
-        const leftX = centerX - a * 0.48;
-        ctx.font = '600 18px system-ui, sans-serif';
-        ctx.textAlign = 'left';
+        ctx.fillStyle = main;
+        ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.fillText(timeStr, timeAreaW / 2 + w * 0.01, h / 2);
+
+        // Sidebar
+        const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+        const sx = timeAreaW + sidebarW * 0.12;
+        const sFontA = Math.max(20, h * 0.13);    // DAY DATE
+        const sFontB = Math.max(20, h * 0.14);    // Temp
+        const sFontC = Math.max(16, h * 0.11);    // Alarm
+        const sFontAM = sFontC * 0.62;
+
+        // Top: "MON 5" — DAY in main color, number white
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.font = `800 ${sFontA}px "SF Pro Display", system-ui, sans-serif`;
+        const dayStr = days[now.getDay()];
+        const dateNum = ' ' + now.getDate();
+        const topY = h * 0.24;
+        ctx.fillStyle = main;
+        ctx.fillText(dayStr, sx, topY);
+        const dayW = ctx.measureText(dayStr).width;
         ctx.fillStyle = white;
-        ctx.fillText("6:00AM", leftX, centerY + 2);
+        ctx.fillText(dateNum, sx + dayW, topY);
 
-        const alarmIconX = leftX - 18;
-        ctx.save();
-        ctx.translate(alarmIconX, centerY + 1);
-        ctx.scale(0.85, 0.85);
-        ctx.beginPath();
-        ctx.arc(0, 0, 7, 0, Math.PI * 2);
-        ctx.strokeStyle = orange;
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0, -3.5);
-        ctx.lineTo(0, 0);
-        ctx.lineTo(2.5, 2.5);
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(-5.5, -5.5, 2.5, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(5.5, -5.5, 2.5, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-
-        // --- Date Widget (Right) ---
-        const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-        const dayText = days[now.getDay()];
-        const dateNum = now.getDate().toString();
-        const rightX = centerX + a * 0.48;
-
-        ctx.font = '600 18px system-ui, sans-serif';
-        ctx.textAlign = 'right';
-        const dateNumWidth = ctx.measureText(dateNum).width;
+        // Temp (live)
         ctx.fillStyle = white;
-        ctx.fillText(dateNum, rightX, centerY + 2);
-        ctx.fillStyle = red;
-        ctx.fillText(dayText + " ", rightX - dateNumWidth, centerY + 2);
+        ctx.font = `700 ${sFontB}px "SF Pro Display", system-ui, sans-serif`;
+        const tC = window.__weatherTempC;
+        const tempStr = (tC != null) ? `${Math.round(tC)}°` : '—°';
+        ctx.fillText(tempStr, sx, topY + sFontA * 1.25);
 
-        // --- Hands ---
-        const h = now.getHours();
-        const m = now.getMinutes();
-        const s = now.getSeconds();
-        const ms = now.getMilliseconds();
+        // Alarm icon + time bottom
+        const ay = h * 0.72;
+        ctx.fillStyle = main;
+        ctx.font = `${sFontC * 1.05}px "Apple Color Emoji", "Segoe UI Emoji", system-ui, sans-serif`;
+        ctx.fillText('⏰', sx, ay);
+        // Alarm time
+        const alarmY = ay + sFontC * 1.5;
+        ctx.fillStyle = white;
+        ctx.font = `800 ${sFontC}px "SF Pro Display", system-ui, sans-serif`;
+        const alarmTime = '6:30';
+        ctx.fillText(alarmTime, sx, alarmY);
+        const aw = ctx.measureText(alarmTime).width;
+        ctx.font = `800 ${sFontAM}px "SF Pro Display", system-ui, sans-serif`;
+        ctx.fillText('AM', sx + aw + 2, alarmY);
+      }
 
-        const secAngle = ((s + ms / 1000) * 6) * Math.PI / 180;
-        const minAngle = (m * 6 + (s / 60) * 6) * Math.PI / 180;
-        const hourAngle = ((h % 12) * 30 + (m / 60) * 30) * Math.PI / 180;
+      // ---------- FACE 0: Green Big Digital (StandBy Big) ----------
+      function drawFace0(canvas, now) {
+        drawBigDigital(canvas, now, '#7cd2a0');
+      }
 
-        function drawHollowHand(angle, length, width) {
-          const sin = Math.sin(angle);
-          const cos = -Math.cos(angle);
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(centerX, centerY);
-          ctx.lineTo(centerX + length * sin, centerY + length * cos);
-          ctx.strokeStyle = white;
-          ctx.lineWidth = width;
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(centerX, centerY);
-          ctx.lineTo(centerX + (length - 3) * sin, centerY + (length - 3) * cos);
-          ctx.strokeStyle = '#000000';
-          ctx.lineWidth = width - 5.5;
-          ctx.stroke();
+      // ---------- FACE 1: Pastel gradient minimal "5:00" style ----------
+      function drawFace1(canvas, now) {
+        const f = fitCanvas(canvas); if (!f) return;
+        const { ctx, w, h } = f;
+        const aod = isAOD();
+        const fg = aod ? '#ff1a1a' : '#ffffff';
+        let hh = now.getHours();
+        hh = hh % 12; if (hh === 0) hh = 12;
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const timeStr = `${hh}:${mm}`;
+        let size = Math.min(w * 0.36, h * 0.68);
+        ctx.font = `500 ${size}px "SF Pro Rounded", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif`;
+        while (ctx.measureText(timeStr).width > w * 0.78 && size > 40) {
+          size -= 6;
+          ctx.font = `500 ${size}px "SF Pro Rounded", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif`;
         }
+        ctx.fillStyle = fg;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.15)';
+        ctx.shadowBlur = 12;
+        ctx.fillText(timeStr, w / 2, h / 2);
+        ctx.shadowBlur = 0;
+      }
 
-        drawHollowHand(hourAngle, b * 0.55, 14);
-        drawHollowHand(minAngle, b * 0.85, 14);
 
-        // Center black mask
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
-        ctx.fillStyle = '#000000';
-        ctx.fill();
+      // ---------- FACE 2: Pink Big Digital (StandBy Big) ----------
+      function drawFace2(canvas, now) {
+        drawBigDigital(canvas, now, '#f5b5c0');
+      }
 
-        // Second Hand
-        const secTailLength = b * 0.25;
-        const secLength = b * 0.95;
-        const sSin = Math.sin(secAngle);
-        const sCos = -Math.cos(secAngle);
+      // ---------- FACE 3: Photo with time top-right + date bottom-right ----------
+      function drawFace3(canvas, now) {
+        const f = fitCanvas(canvas); if (!f) return;
+        const { ctx, w, h } = f;
+        const aod = isAOD();
+        const fg = aod ? '#ff1a1a' : '#ffffff';
+        let hh = now.getHours();
+        hh = hh % 12; if (hh === 0) hh = 12;
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const timeStr = `${hh}:${mm}`;
+        const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+        const dateStr = `${String(now.getDate()).padStart(2,'0')}-${months[now.getMonth()]}-${now.getFullYear()}`;
 
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
-        ctx.strokeStyle = orange;
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
+        // Time top-right
+        const tSize = Math.min(w * 0.13, h * 0.22);
+        ctx.fillStyle = fg;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.font = `600 ${tSize}px "SF Pro Display", "Helvetica Neue", system-ui, sans-serif`;
+        ctx.shadowColor = 'rgba(0,0,0,0.45)';
+        ctx.shadowBlur = 14;
+        ctx.fillText(timeStr, w - 28, 22);
 
-        ctx.beginPath();
-        ctx.moveTo(centerX + 6 * sSin, centerY + 6 * sCos);
-        ctx.lineTo(centerX + secLength * sSin, centerY + secLength * sCos);
-        ctx.strokeStyle = orange;
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
+        // Date bottom-right
+        const dSize = Math.max(14, h * 0.055);
+        ctx.textBaseline = 'bottom';
+        ctx.font = `600 ${dSize}px "SF Pro Display", system-ui, sans-serif`;
+        ctx.fillText(dateStr, w - 28, h - 22);
+        ctx.shadowBlur = 0;
+      }
 
-        ctx.beginPath();
-        ctx.moveTo(centerX - 6 * sSin, centerY - 6 * sCos);
-        ctx.lineTo(centerX - (secTailLength - 4) * sSin, centerY - (secTailLength - 4) * sCos);
-        ctx.stroke();
 
-        ctx.beginPath();
-        ctx.arc(centerX - secTailLength * sSin, centerY - secTailLength * sCos, 3, 0, Math.PI * 2);
-        ctx.stroke();
+      const drawers = [drawFace0, drawFace1, drawFace2, drawFace3];
 
-        ctx.restore();
+      function applyTransform() {
+        // Vertical rolodex roll: shift container, tilt non-current faces
+        const offsetPct = -currentFace * 100;
+        facesWrap.style.transform = `translateY(${offsetPct}%)`;
+        const faces = facesWrap.querySelectorAll('.fs-face');
+        faces.forEach((face, i) => {
+          face.style.transform = `translateY(${i * 100}%)`;
+        });
+        indicators.forEach((d, i) => d.classList.toggle('active', i === currentFace));
+      }
+
+      function goTo(idx) {
+        idx = (idx + FACE_COUNT) % FACE_COUNT;
+        if (idx === currentFace || isAnimating) return;
+        isAnimating = true;
+        currentFace = idx;
+        applyTransform();
+        setTimeout(() => { isAnimating = false; }, 680);
       }
 
       function loop() {
-        drawRectClock(new Date());
+        const now = new Date();
+        canvases.forEach((c, i) => drawers[i](c, now));
         requestAnimationFrame(loop);
       }
       requestAnimationFrame(loop);
+      applyTransform();
+
+      // --- Navigation: wheel + touch when slide 4 is in view ---
+      const slide = document.querySelector('.fullscreen-clock-slide');
+      function inView() {
+        const r = slide.getBoundingClientRect();
+        return r.left < window.innerWidth / 2 && r.right > window.innerWidth / 2;
+      }
+
+      slide.addEventListener('wheel', (e) => {
+        if (!inView()) return;
+        if (Math.abs(e.deltaY) < 20) return;
+        e.preventDefault();
+        goTo(currentFace + (e.deltaY > 0 ? 1 : -1));
+      }, { passive: false });
+
+      let tStartY = null, tStartX = null;
+      slide.addEventListener('touchstart', (e) => {
+        const t = e.touches[0]; tStartY = t.clientY; tStartX = t.clientX;
+      }, { passive: true });
+      slide.addEventListener('touchend', (e) => {
+        if (tStartY == null) return;
+        const t = (e.changedTouches[0] || {});
+        const dy = (t.clientY ?? tStartY) - tStartY;
+        const dx = (t.clientX ?? tStartX) - tStartX;
+        if (Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx) * 1.5) {
+          goTo(currentFace + (dy < 0 ? 1 : -1));
+        }
+        tStartY = null; tStartX = null;
+      });
     })();
+
 
 
     // -----------------------------------------------------
@@ -3763,33 +3885,17 @@
         animateBattery(92);
       }
 
-      // Hide widget after 30 seconds total (charging logo dwell) with visible countdown.
-      // If the device has no Battery API (e.g. desktop without battery), keep the
-      // charging icon visible permanently and don't show the countdown.
+      // Hide widget after 30 seconds (no visible countdown).
+      // If the device has no Battery API, keep the charging icon visible permanently.
       clearTimeout(batteryVisibleTimer);
-      clearInterval(batteryCountdownInterval);
       const hasBatteryAPI = !!navigator.getBattery;
       if (!hasBatteryAPI) {
-        batteryCountdown.style.display = 'none';
         batteryBolt.style.display = 'block';
         batteryPctText.style.display = 'none';
         return; // stay visible forever
       }
-      let remaining = 30;
-      batteryCountdown.textContent = remaining + 's';
-      batteryCountdown.style.display = 'block';
-      batteryCountdownInterval = setInterval(() => {
-        remaining--;
-        if (remaining <= 0) {
-          clearInterval(batteryCountdownInterval);
-          batteryCountdown.textContent = '0s';
-        } else {
-          batteryCountdown.textContent = remaining + 's';
-        }
-      }, 1000);
       batteryVisibleTimer = setTimeout(() => {
         batteryWidget.classList.remove('show');
-        clearInterval(batteryCountdownInterval);
       }, 30000);
     }
 
@@ -3843,6 +3949,7 @@
         .then(wd => {
           if (!wd.current_weather) return;
           const temp = Math.round(wd.current_weather.temperature);
+          window.__weatherTempC = wd.current_weather.temperature;
           const wind = wd.current_weather.windspeed;
           const code = wd.current_weather.weathercode;
           const high = Math.round(wd.daily.temperature_2m_max[0]);
@@ -3897,17 +4004,30 @@
     // -----------------------------------------------------
     // 10. Fullscreen Toggle Logic
     // -----------------------------------------------------
+    let autoFullscreenDone = false;
+
+    function requestAppFullscreen() {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) {
+        return el.requestFullscreen().catch(err => {
+          console.warn(`Error attempting to enable fullscreen mode: ${err.message}`);
+        });
+      }
+      return Promise.resolve();
+    }
+    function exitAppFullscreen() {
+      if (document.exitFullscreen && document.fullscreenElement) {
+        document.exitFullscreen();
+      }
+    }
+
     const fullscreenBtn = document.getElementById('fullscreen-btn');
     if (fullscreenBtn) {
       fullscreenBtn.addEventListener('click', () => {
         if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(err => {
-            console.warn(`Error attempting to enable fullscreen mode: ${err.message}`);
-          });
+          requestAppFullscreen();
         } else {
-          if (document.exitFullscreen) {
-            document.exitFullscreen();
-          }
+          exitAppFullscreen();
         }
       });
     }
@@ -3917,11 +4037,59 @@
       const screenEl = document.querySelector('.screen');
       if (document.fullscreenElement) {
         screenEl.classList.add('is-fullscreen');
+        autoFullscreenDone = true;
       } else {
         screenEl.classList.remove('is-fullscreen');
       }
       applyChassisScale();
     });
+
+    // -----------------------------------------------------
+    // 10a. Auto-fullscreen helpers
+    // -----------------------------------------------------
+    const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+    const isTouchDevice = isCoarsePointer || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isDesktop = !isTouchDevice && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+    function tryAutoFullscreen() {
+      if (autoFullscreenDone || !document.fullscreenEnabled) return;
+      requestAppFullscreen();
+    }
+
+    // One-time fallback: if the browser blocks the auto attempt, try again
+    // on the first user interaction (outside the manual fullscreen button).
+    function onFirstInteraction(e) {
+      if (autoFullscreenDone || !document.fullscreenEnabled) return;
+      if (fullscreenBtn && (e.target === fullscreenBtn || fullscreenBtn.contains(e.target))) return;
+      autoFullscreenDone = true;
+      requestAppFullscreen();
+    }
+
+    // Mobile: auto fullscreen when rotating from portrait to landscape
+    const landscapeQuery = window.matchMedia('(orientation: landscape)');
+    function handleOrientationChange() {
+      if (isTouchDevice && landscapeQuery.matches) {
+        tryAutoFullscreen();
+      }
+    }
+    landscapeQuery.addEventListener('change', handleOrientationChange);
+    handleOrientationChange();
+
+    // Desktop: auto fullscreen shortly after opening
+    if (isDesktop) {
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          tryAutoFullscreen();
+          if (!autoFullscreenDone) {
+            document.addEventListener('pointerdown', onFirstInteraction, { once: true });
+            document.addEventListener('keydown', onFirstInteraction, { once: true });
+          }
+        }, 300);
+      });
+    } else if (isTouchDevice) {
+      // Also retry on the first touch if the auto attempt was blocked
+      document.addEventListener('pointerdown', onFirstInteraction, { once: true });
+    }
 
     // -----------------------------------------------------
     // Responsive Chassis Scaling (fits any viewport / fullscreen)
